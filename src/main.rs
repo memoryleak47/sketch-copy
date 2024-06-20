@@ -28,14 +28,26 @@ fn rew(name: &str, s1: &str, s2: &str) -> Rewrite<SymbolLang, ()> {
 
 static RULES: &[&'static str] = &["assoc1", "assoc2", "map-fission", "transpose-maps"];
 fn main() {
-    let mid = "(o (m (* n1 32) (o (m (* n2 32) j) j)) (o (o j (o (m n1 (m 32 (m n2 (m 32 (m n3 (m 32 f)))))) (s 32))) (m (* n1 32) (o (m n2 (m 32 (s 32))) (s 32)))))".parse().unwrap();
-    let goal = "(o (o (m (* n1 32) (o (m (* n2 32) j) j)) j) (o (o (m n1 (o T (m n2 (o (m 32 T) T)))) (o (m n1 (m n2 (m n3 (m 32 (m 32 (m 32 f)))))) (m n1 (m n2 T)))) (o (o (m n1 (o (m n2 (m 32 T)) T)) (s 32)) (m (* n1 32) (o (m n2 (m 32 (s 32))) (s 32))))))".parse().unwrap();
+    let mid: RecExpr<SymbolLang> = "(o (m (* n1 32) (o (m (* n2 32) j) j)) (o (o j (o (m n1 (m 32 (m n2 (m 32 (m n3 (m 32 f)))))) (s 32))) (m (* n1 32) (o (m n2 (m 32 (s 32))) (s 32)))))".parse().unwrap();
+    let goal: RecExpr<SymbolLang> = "(o (o (m (* n1 32) (o (m (* n2 32) j) j)) j) (o (o (m n1 (o T (m n2 (o (m 32 T) T)))) (o (m n1 (m n2 (m n3 (m 32 (m 32 (m 32 f)))))) (m n1 (m n2 T)))) (o (o (m n1 (o (m n2 (m 32 T)) T)) (s 32)) (m (* n1 32) (o (m n2 (m 32 (s 32))) (s 32))))))".parse().unwrap();
+
+    let mid2 = mid.clone();
+    let goal2 = goal.clone();
 
     let rewrites = get_rules(&RULES);
-    let r = Runner::<SymbolLang, ()>::default().with_iter_limit(100).with_node_limit(10_000_000).with_time_limit(std::time::Duration::from_secs(20)).with_expr(&mid).run(&rewrites);
-    dbg!(r.stop_reason);
-    let mut eg = r.egraph;
-    let i1 = eg.add_expr(&mid);
-    let i2 = eg.add_expr(&goal);
-    dbg!(eg.find(i1), eg.find(i2));
+    let r = Runner::<SymbolLang, ()>::default()
+             .with_iter_limit(100)
+             .with_node_limit(10_000_000)
+             .with_time_limit(std::time::Duration::from_secs(40))
+             .with_expr(&mid)
+             .with_hook(move |r| {
+                let lkp = |a| r.egraph.lookup_expr(a).map(|x| r.egraph.find(x));
+                if lkp(&mid2) == lkp(&goal2) {
+                    return Err(String::from("success!"));
+                } else { Ok(()) }
+            }).run(&rewrites);
+    r.print_report();
+    let eg = r.egraph;
+    dbg!(eg.lookup_expr(&mid));
+    dbg!(eg.lookup_expr(&goal));
 }
